@@ -1,7 +1,10 @@
 "use client"
 
 import * as React from "react"
+import { useEffect, useState } from "react"
 import Image from "next/image"
+import Link from "next/link"
+import { ShoppingBasket, ListCheck, CircleGauge } from "lucide-react"
 
 import { NavMain } from "@/components/nav-main"
 import { NavUser } from "@/components/nav-user"
@@ -15,40 +18,56 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-import { ShoppingBasket, ListCheck, CircleGauge } from "lucide-react"
-
-const data = {
-  user: {
-    name: "Francis Lofranco",
-    email: "francis.lofranco@cloudsteps.com.ph",
-    avatar: "",
+const navMain = [
+  {
+    title: "Dashboard",
+    url: "/dashboard",
+    icon: <CircleGauge />,
   },
+  {
+    title: "Purchase Request",
+    url: "/purchase-requests",
+    icon: <ListCheck />,
+  },
+  {
+    title: "New Item Request",
+    url: "/item-requests",
+    icon: <ShoppingBasket />,
+  },
+]
 
-  navMain: [
-    {
-      title: "Dashboard",
-      url: "dashboard",
-      icon: <CircleGauge />,
-    },
-    {
-      title: "Purchase Request",
-      url: "requests",
-      icon: <ListCheck />,
-    },
-    {
-      title: "New Item Request",
-      url: "item-requests",
-      icon: <ShoppingBasket />,
-    },
-  ],
+interface SessionUser {
+  UserId?: string
+  Email?: string
 }
 
 export function AppSidebar({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const [user, setUser] = useState<SessionUser | null>(null)
+
+  useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await fetch("/api/me")
+        if (!res.ok) return
+        const data = await res.json()
+        setUser(data?.user ?? null)
+      } catch (err) {
+        console.error("Failed to fetch current user:", err)
+      }
+    }
+    fetchMe()
+  }, [])
+
+  const navUser = {
+    name: user?.UserId ?? "",
+    email: user?.Email ?? "",
+    avatar: "",
+  }
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-
       {/* Header */}
       <SidebarHeader className="border-b border-sidebar-border">
         <SidebarMenu>
@@ -57,7 +76,7 @@ export function AppSidebar({
               asChild
               className="h-14 px-3 hover:bg-sidebar-accent/40 transition-colors"
             >
-              <a href="#" className="flex items-center gap-3">
+              <Link href="/" className="flex items-center gap-3">
                 <Image
                   src="/qed-logo.png"
                   alt="QED Logo"
@@ -72,23 +91,21 @@ export function AppSidebar({
                     Quest Exploration Drilling
                   </span>
                 </div>
-              </a>
+              </Link>
             </SidebarMenuButton>
-
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
 
       {/* Navigation */}
       <SidebarContent>
-        <NavMain items={data.navMain} />
+        <NavMain items={navMain} />
       </SidebarContent>
 
       {/* Footer */}
       <SidebarFooter className="border-t border-sidebar-border">
-        <NavUser user={data.user} />
+        <NavUser user={navUser} />
       </SidebarFooter>
-
     </Sidebar>
   )
 }
