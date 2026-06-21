@@ -5,6 +5,7 @@ import { purchaseRequisitionService } from "@/services/business-central/purchase
 export async function POST(req: Request) {
     try {
         const body = await req.json();
+        console.log("Received request body:", body);
         const { RequestType,
             Description,
             CreatedBy,

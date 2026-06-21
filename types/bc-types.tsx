@@ -1,4 +1,5 @@
 export type SessionUser = {
+  UserId: string | null
   user: {
     Email: string | null
     UserId: string | null
@@ -35,7 +36,7 @@ export type RequestType = {
     ShortcutDimension7Code: string,
     ShortcutDimension8Code: string,
     RequestedBy: string,
-    Lines: RequestLineType[];
+    RequestLines: RequestLineType[];
 }
 export type DimensionType = {
   ShortcutDimensionNo: number;

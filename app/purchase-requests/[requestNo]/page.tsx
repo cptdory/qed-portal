@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -9,8 +10,17 @@ import { RequestItemsTable } from "./request-items-table";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { DimensionType, DimensionValueType, RequestType, RequisitionType } from "@/types/bc-types";
+import { Checkbox } from "@/components/ui/checkbox";
+import { HandHelping } from "lucide-react";
+import { DimensionType, DimensionValueType, RequestLineType, RequestType, RequisitionType } from "@/types/bc-types";
 import { sileo } from "sileo";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
 const EDITABLE_STATUSES = ["Draft", "For Correction"];
 
 function DimensionEditSelect({
@@ -104,7 +114,7 @@ function DimensionsSection({
         const data = await res.json();
         setDimensions(data.VisibleDimensions ?? []);
       } catch (error) {
-        console.error("Error fetching visible dimensions:", error);
+        sileo.error({ title: "Failed to Load Dimensions — Could not load visible dimensions.", fill: "#171717" });
       }
     };
     fetch$();
@@ -152,6 +162,14 @@ export default function Page() {
   const [saving, setSaving] = useState(false);
   const [submittingRequest, setSubmittingRequest] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [confirmReceiveOpen, setConfirmReceiveOpen] = useState(false);
+  const [issuanceNo, setIssuanceNo] = useState("");
+  const [issuanceData, setIssuanceData] = useState<any>(null);
+  const [receivedQuantities, setReceivedQuantities] = useState<Record<string, string>>({});
+  const [checkedLines, setCheckedLines] = useState<Set<string>>(new Set());
+  const [loadingIssuance, setLoadingIssuance] = useState(false);
+  const [confirmingReceive, setConfirmingReceive] = useState(false);
 
   const isEditable = !!request && EDITABLE_STATUSES.includes(request.RequestStatus ?? "");
 
@@ -183,7 +201,7 @@ export default function Page() {
         });
       }
     } catch (error) {
-      console.error("Error fetching request:", error);
+      sileo.error({ title: "Failed to Fetch Request — An error occurred while fetching the request.", fill: "#171717" });
     } finally {
       setLoading(false);
     }
@@ -208,7 +226,7 @@ export default function Page() {
         const data = await res.json();
         setRequisitionTypes(data.RequisitionTypes ?? []);
       } catch (err) {
-        console.error(err);
+        sileo.error({ title: "Failed to Load Requisition Types — Could not load available requisition types.", fill: "#171717" });
       }
     };
 
@@ -223,7 +241,7 @@ export default function Page() {
     if (!request || !isEditable) return;
 
     const typeChanged = requestTypeValue !== originalRequestType;
-    const existingLines = request.Lines ?? [];
+    const existingLines = request.RequestLines ?? [];
 
     if (typeChanged && existingLines.length > 0) {
       const confirmed = window.confirm(
@@ -259,19 +277,18 @@ export default function Page() {
       if (!res.ok) {
         const message = data?.error || "Failed to update request.";
         setError(message);
-        sileo.error({ title: "Failed to Update Header", description: message, fill: "#171717" });
+        sileo.error({ title: `Failed to Update Header — ${message}`, fill: "#171717" });
         return;
       }
 
       if (data?.Status !== "Successful") {
         const message = data?.Message ?? "Failed to update request.";
         setError(message);
-        sileo.error({ title: "Failed to Update Header", description: message, fill: "#171717" });
+        sileo.error({ title: `Failed to Update Header — ${message}`, fill: "#171717" });
         return;
       }
 
       if (typeChanged) {
-        // Request Type changed — delete all existing lines (no longer valid against new type)
         for (const line of existingLines) {
           try {
             await fetch("/api/delete-request-line", {
@@ -284,16 +301,14 @@ export default function Page() {
               }),
             });
           } catch (lineErr) {
-            console.error("Failed to delete line during type change:", lineErr);
+            sileo.error({ title: "Failed to Delete Line — Could not delete line during type change.", fill: "#171717" });
           }
         }
         sileo.success({
-          title: "Request Header updated.",
-          description: existingLines.length > 0 ? "All existing lines were removed due to the Request Type change." : undefined,
+          title: existingLines.length > 0 ? "Request Header updated. All existing lines were removed due to the Request Type change." : "Request Header updated.",
           fill: "#171717",
         });
       } else {
-        // Request Type unchanged — propagate updated dimensions / warehouse location to existing lines
         for (const line of existingLines) {
           try {
             await fetch("/api/update-request-line", {
@@ -317,7 +332,7 @@ export default function Page() {
               }),
             });
           } catch (lineErr) {
-            console.error("Failed to sync dimensions to line:", lineErr);
+            sileo.error({ title: "Failed to Update Line — Could not sync dimensions to line.", fill: "#171717" });
           }
         }
         sileo.success({ title: "Request Header updated successfully.", fill: "#171717" });
@@ -325,10 +340,9 @@ export default function Page() {
 
       await fetchRequest();
     } catch (err) {
-      console.error(err);
       const message = "An unexpected error occurred.";
       setError(message);
-      sileo.error({ title: "Failed to Update Header", description: message, fill: "#171717" });
+      sileo.error({ title: `Failed to Update Header — ${message}`, fill: "#171717" });
     } finally {
       setSaving(false);
     }
@@ -360,30 +374,191 @@ export default function Page() {
       if (!res.ok) {
         const message = data?.error || "Failed to submit request.";
         setError(message);
-        sileo.error({ title: "Submit Failed", description: message, fill: "#171717" });
+        sileo.error({ title: `Submit Failed — ${message}`, fill: "#171717" });
         return;
       }
 
       if (data?.Status !== "Successful") {
         const message = data?.Message ?? "Failed to submit request.";
         setError(message);
-        sileo.error({ title: "Submit Failed", description: message, fill: "#171717" });
+        sileo.error({ title: `Submit Failed — ${message}`, fill: "#171717" });
         return;
       }
 
       sileo.success({ title: "Request submitted successfully.", fill: "#171717" });
       await fetchRequest();
     } catch (err) {
-      console.error(err);
       const message = "An unexpected error occurred.";
       setError(message);
-      sileo.error({ title: "Submit Failed", description: message, fill: "#171717" });
+      sileo.error({ title: `Submit Failed — ${message}`, fill: "#171717" });
     } finally {
       setSubmittingRequest(false);
     }
   };
 
-  return (
+  const handleReceiveRequestedItems = () => {
+    setIssuanceNo("");
+    setIssuanceData(null);
+    setReceivedQuantities({});
+    setCheckedLines(new Set());
+    setReceiveOpen(true);
+  };
+
+  const handleLoadIssuance = async () => {
+    
+    if (!issuanceNo.trim()) {
+      sileo.error({ title: "Please enter an issuance number.", fill: "#171717" });
+      return;
+    }
+
+    try {
+      setLoadingIssuance(true);
+
+      const res = await fetch("/api/get-issuance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ IssuanceNo: issuanceNo }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || data?.Status !== "Successful") {
+        const message = data?.Message || "Failed to load issuance.";
+        sileo.error({ title: message, fill: "#171717" });
+        return;
+      }
+
+      const issuance = data.Issuance;
+      setIssuanceData(issuance);
+
+      // Fetch fresh request data to ensure we have the latest lines
+      const requestRes = await fetch("/api/get-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ RequestNo: request?.RequestNo }),
+      });
+
+      const requestData = await requestRes.json().catch(() => null);
+      const requestLines = requestData?.Request?.RequestLines ?? [];
+
+      // Compare issuance lines with request lines
+      const newReceivedQuantities: Record<string, string> = {};
+      const currentRequestType = issuance?.RequestType;
+      const currentRequestNo = issuance?.RequestNo;
+
+      if (issuance?.IssuanceLines) {
+        for (const issuanceLine of issuance.IssuanceLines) {
+          const matchingLine = requestLines.find(
+            (l: any) =>
+              l.LineNo === issuanceLine.RequestLineNo &&
+              currentRequestType === issuanceLine.RequestType &&
+              currentRequestNo === issuanceLine.RequestNo
+          );
+
+          if (matchingLine) {
+            newReceivedQuantities[issuanceLine.RequestLineNo.toString()] = issuanceLine.Quantity?.toString() || "";
+          }
+        }
+      }
+      setReceivedQuantities(newReceivedQuantities);
+      sileo.success({
+        title: `Issuance loaded successfully. Found ${Object.keys(newReceivedQuantities).length} matching items.`,
+        fill: "#171717",
+      });
+    } catch (err) {
+      sileo.error({ title: "An unexpected error occurred while loading issuance.", fill: "#171717" });
+    } finally {
+      setLoadingIssuance(false);
+    }
+  };
+
+  const handleConfirmReceive = async () => {
+    if (checkedLines.size === 0) {
+      sileo.error({ title: "Please select at least one item to receive.", fill: "#171717" });
+      return;
+    }
+
+    // Validate that at least one checked line has qty > 0
+    let hasValidQty = false;
+    for (const key of checkedLines) {
+      const receivedQty = receivedQuantities[key];
+      if (receivedQty && parseFloat(receivedQty) > 0) {
+        hasValidQty = true;
+        break;
+      }
+    }
+
+    if (!hasValidQty) {
+      sileo.error({ title: "Please enter a received quantity greater than 0 for at least one item.", fill: "#171717" });
+      return;
+    }
+
+    try {
+      setConfirmingReceive(true);
+
+      let successCount = 0;
+      let failureCount = 0;
+
+      for (const lineNo of checkedLines) {
+        const receivedQty = receivedQuantities[lineNo];
+        if (!receivedQty || parseFloat(receivedQty) === 0) continue;
+
+        const requestLine = lines.find((l: any) => l.LineNo.toString() === lineNo);
+        if (!requestLine) continue;
+
+        // Find matching issuance line if issuance was loaded
+        const issuanceLine = issuanceData?.IssuanceLines?.find(
+          (il: any) => il.RequestLineNo === requestLine.LineNo
+        );
+
+        try {
+          const res = await fetch("/api/update-issuance-receive", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              IssuanceNo: issuanceData?.IssuanceNo || "",
+              IssuanceLineNo: issuanceLine?.IssuanceLineNo || "",
+              Quantity: receivedQty,
+              RequestType: request?.RequestType,
+              RequestNo: request?.RequestNo,
+              RequestLineNo: requestLine.LineNo,
+            }),
+          });
+
+          const data = await res.json().catch(() => null);
+
+          if (res.ok && data?.Status === "Successful") {
+            successCount++;
+          } else {
+            failureCount++;
+            sileo.error({ title: `Line Update Failed — ${data?.Message || "Could not update line."}`, fill: "#171717" });
+          }
+        } catch (err) {
+          failureCount++;
+          sileo.error({ title: "Line Update Error — An error occurred while updating the line.", fill: "#171717" });
+        }
+      }
+
+      if (successCount > 0) {
+        sileo.success({
+          title: `Receipt confirmed. ${successCount} item(s) received${failureCount > 0 ? `, ${failureCount} failed` : ""}.`,
+          fill: "#171717",
+        });
+        setConfirmReceiveOpen(false);
+        setReceiveOpen(false);
+      } else {
+        sileo.error({ title: "Failed to confirm receipt. Please try again.", fill: "#171717" });
+      }
+    } catch (err) {
+      sileo.error({ title: "An unexpected error occurred.", fill: "#171717" });
+    } finally {
+      setConfirmingReceive(false);
+    }
+  };
+
+  const lines = request?.RequestLines ?? [];
+
+  return (  
     <SidebarProvider>
       <AppSidebar variant="inset" />
       <SidebarInset>
@@ -410,6 +585,16 @@ export default function Page() {
                         {submittingRequest ? "Submitting..." : "Submit"}
                       </Button>
                     </div>
+                  )}
+                  {request?.RequestStatus === "Approved" && (
+                    <Button
+                      size="sm"
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                      onClick={handleReceiveRequestedItems}
+                    >
+                      <HandHelping className="h-3.5 w-3.5 mr-1.5" />
+                      Receive Requested Items
+                    </Button>
                   )}
                 </div>
 
@@ -500,7 +685,7 @@ export default function Page() {
 
               <section className="rounded-md border bg-white p-3 shadow-sm">
                 <RequestItemsTable
-                  lines={request?.Lines ?? []}
+                  lines={lines}
                   requestType={request?.RequestType ?? ""}
                   requestNo={request?.RequestNo ?? ""}
                   warehouseLocation={request?.WarehouseLocation ?? ""}
@@ -511,6 +696,198 @@ export default function Page() {
                   onLineDeleted={fetchRequest}
                 />
               </section>
+
+              {/* RECEIVE ITEMS DIALOG */}
+              <Dialog open={receiveOpen} onOpenChange={setReceiveOpen}>
+                <DialogContent className="!w-[98vw] !max-w-[1000px] p-5">
+                  <DialogHeader>
+                    <DialogTitle className="text-sm font-semibold">
+                      Receive Requested Items
+                    </DialogTitle>
+                  </DialogHeader>
+
+                  {/* TOP CONTROLS */}
+                  <div className="flex items-end gap-2">
+                    <div className="w-full space-y-1">
+                      <Label className="text-xs font-medium text-slate-600">
+                        Document Issuance No.
+                      </Label>
+                      <Input
+                        placeholder="Enter document issuance no."
+                        value={issuanceNo}
+                        onChange={(e) => setIssuanceNo(e.target.value)}
+                        disabled={loadingIssuance}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={handleLoadIssuance}
+                      disabled={loadingIssuance}
+                      className="h-8 px-4 text-xs"
+                    >
+                      {loadingIssuance ? "Loading..." : "Enter"}
+                    </Button>
+                  </div>
+
+                  {/* INSTRUCTIONS */}
+                  <div className="rounded-md border bg-slate-50 p-3 space-y-2">
+                    <div className="flex items-start gap-2 text-xs text-slate-600">
+                      <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
+                      <p>
+                        <span className="font-semibold">(Optional)</span> Enter the <span className="font-semibold">Document Issuance No.</span> to auto-load issued items and quantities. Or manually check items and enter received quantities.
+                      </p>
+                    </div>
+                    <div className="flex items-start gap-2 text-xs text-slate-600">
+                      <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
+                      <p>
+                        Check items you want to receive and enter <span className="font-semibold">Received Quantity</span> for each. Green rows indicate matched issuance items.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* TABLE */}
+                  <div className="overflow-hidden rounded-md border bg-white">
+                    <table className="w-full border-collapse text-xs">
+                      <thead className="bg-slate-50">
+                        <tr className="border-b">
+                          <th className="w-10 px-3 py-2 text-center" />
+                          <th className="px-3 py-2 text-left font-medium text-slate-600">Line No</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-600">No.</th>
+                          <th className="px-3 py-2 text-left font-medium text-slate-600">Description</th>
+                          <th className="px-3 py-2 text-center font-medium text-slate-600">UOM</th>
+                          <th className="px-3 py-2 text-right font-medium text-slate-600">Requested Qty</th>
+                          <th className="px-3 py-2 text-right font-medium text-slate-600">Received Qty</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {lines.length > 0 ? (
+                          lines.map((line) => {
+                            const issuanceLine = issuanceData?.IssuanceLines?.find(
+                              (il: any) =>
+                                il.RequestLineNo === line.LineNo &&
+                                il.RequestType === request?.RequestType &&
+                                il.RequestNo === request?.RequestNo
+                            );
+                            const key = line.LineNo.toString();
+                            return (
+                              <tr
+                                key={line.LineNo}
+                                className={`border-b last:border-0 hover:bg-slate-50 ${
+                                  issuanceLine ? "bg-green-50" : ""
+                                }`}
+                              >
+                                <td className="px-3 py-3 text-center">
+                                  <div className="flex justify-center">
+                                    <Checkbox
+                                      checked={checkedLines.has(key)}
+                                      onCheckedChange={(checked) => {
+                                        setCheckedLines((prev) => {
+                                          const newSet = new Set(prev);
+                                          if (checked) {
+                                            newSet.add(key);
+                                          } else {
+                                            newSet.delete(key);
+                                          }
+                                          return newSet;
+                                        });
+                                      }}
+                                      className="h-5 w-5 border-2 border-slate-500 shadow-sm hover:border-blue-500 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                                    />
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3 text-slate-700">{line.LineNo}</td>
+                                <td className="px-3 py-3 font-medium text-blue-600">{line.No}</td>
+                                <td className="px-3 py-3 text-slate-600">{line.Description}</td>
+                                <td className="px-3 py-3 text-center">{line.UnitOfMeasure}</td>
+                                <td className="px-3 py-3 text-right font-medium">{line.Quantity}</td>
+                                <td className="px-3 py-3 text-right">
+                                  <Input
+                                    value={receivedQuantities[key] || ""}
+                                    onChange={(e) => {
+                                      if (key) {
+                                        setReceivedQuantities((prev) => ({
+                                          ...prev,
+                                          [key]: e.target.value,
+                                        }));
+                                      }
+                                    }}
+                                    className="h-8 w-24 text-right text-xs ml-auto"
+                                    placeholder="0"
+                                  />
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr>
+                            <td colSpan={7} className="px-3 py-8 text-center text-slate-400">
+                              No items found.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* FOOTER */}
+                  <div className="flex justify-end gap-2 pt-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setReceiveOpen(false)}
+                      disabled={loadingIssuance || confirmingReceive}
+                      className="h-8 text-xs"
+                    >
+                      Cancel
+                    </Button>
+                    <div className="flex items-center gap-2">
+                      {checkedLines.size > 0 && (
+                        <span className="text-xs text-slate-600">
+                          {checkedLines.size} item(s) selected
+                        </span>
+                      )}
+                      <Button
+                        className="h-8 text-xs bg-blue-600 hover:bg-blue-700"
+                        onClick={() => setConfirmReceiveOpen(true)}
+                        disabled={loadingIssuance || confirmingReceive || checkedLines.size === 0}
+                      >
+                        Confirm Receive
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              {/* CONFIRM RECEIVE DIALOG */}
+              <Dialog open={confirmReceiveOpen} onOpenChange={setConfirmReceiveOpen}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Confirm Receipt</DialogTitle>
+                  </DialogHeader>
+                  <div className="text-sm text-slate-600 space-y-2">
+                    <p>Are you sure you want to confirm receiving these items?</p>
+                    <p className="text-xs text-amber-600">
+                      You can still go back if you need to adjust quantities.
+                    </p>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-4">
+                    <Button
+                      variant="outline"
+                      className="h-8 text-xs"
+                      onClick={() => setConfirmReceiveOpen(false)}
+                    >
+                      Go Back
+                    </Button>
+                    <Button
+                      className="h-8 text-xs"
+                      onClick={handleConfirmReceive}
+                      disabled={confirmingReceive}
+                    >
+                      {confirmingReceive ? "Confirming..." : "Yes, Confirm"}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
             </div>
           </div>

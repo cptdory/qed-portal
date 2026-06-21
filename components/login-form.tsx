@@ -43,6 +43,15 @@ export function LoginForm({
         body: JSON.stringify({ EmailAddress: email }),
       })
 
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok || data?.Status !== "Successful") {
+        const message = data?.Message || "Login failed. Please try again."
+        setError(message)
+        sileo.error({ title: "Login Failed " + message,  fill: "#171717" })
+        return
+      }
+
       sileo.success({ title: "Verification code sent.", description: `Check ${email} for your code.`, fill: "#171717" })
       setOtp("")
       setStep("otp")
@@ -207,10 +216,6 @@ export function LoginForm({
               />
             </Field>
 
-            {error && (
-              <p className="text-center text-sm text-red-500">{error}</p>
-            )}
-
             {/* Submit Button */}
             <Field>
               <Button
@@ -263,10 +268,6 @@ export function LoginForm({
                 className="h-13 mt-1 bg-background/40 border-border/50 text-center text-2xl tracking-[0.5em] placeholder:text-muted-foreground/35 placeholder:tracking-[0.5em] focus:bg-background focus:border-primary/50 focus:shadow-md focus:shadow-primary/15 transition-all duration-250 rounded-lg"
               />
             </Field>
-
-            {error && (
-              <p className="text-center text-sm text-red-500">{error}</p>
-            )}
 
             {/* Submit Button */}
             <Field>

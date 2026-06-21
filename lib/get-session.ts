@@ -20,6 +20,7 @@ export async function getSession(): Promise<SessionUser | null> {
 
   if (nextAuthSession?.user?.email) {
     return {
+      UserId: nextAuthSession.user.userId ?? null,
       user: {
         Email: nextAuthSession.user.email ?? null,
         UserId: nextAuthSession.user.userId ?? null,

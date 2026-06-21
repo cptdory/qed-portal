@@ -106,13 +106,13 @@ const monthlyRequests = [
 ]
 
 const requestStatusData = [
-  { name: "Draft",          value: 0,   color: "#64748b" },
-  { name: "New",            value: 0,  color: "#2563eb" },
-  { name: "Pending",        value: 0,  color: "#f59e0b" },
-  { name: "Approved",       value: 0,  color: "#16a34a" },
-  { name: "For Correction", value: 0,  color: "#d97706" },
-  { name: "Rejected",       value: 0,   color: "#dc2626" },
-  { name: "Completed",      value: 0, color: "#9333ea" },
+  { name: "Draft", value: 0, color: "#64748b" },
+  { name: "New", value: 0, color: "#2563eb" },
+  { name: "Pending", value: 0, color: "#f59e0b" },
+  { name: "Approved", value: 0, color: "#16a34a" },
+  { name: "For Correction", value: 0, color: "#d97706" },
+  { name: "Rejected", value: 0, color: "#dc2626" },
+  { name: "Completed", value: 0, color: "#9333ea" },
 ]
 
 const chartConfig = {
@@ -182,11 +182,11 @@ export default function Page() {
                     <AreaChart data={monthlyRequests}>
                       <defs>
                         <linearGradient id="fillApproved" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%"  stopColor="#16a34a" stopOpacity={0.15} />
+                          <stop offset="5%" stopColor="#16a34a" stopOpacity={0.15} />
                           <stop offset="95%" stopColor="#16a34a" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="fillCompleted" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%"  stopColor="#2563eb" stopOpacity={0.15} />
+                          <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
                           <stop offset="95%" stopColor="#2563eb" stopOpacity={0} />
                         </linearGradient>
                       </defs>
@@ -262,102 +262,6 @@ export default function Page() {
               </Card>
 
             </div>
-
-            {/* Operational Monitoring */}
-            <div className="grid gap-4 xl:grid-cols-3">
-
-              {/* Pending Approval */}
-              <Card className="shadow-none border border-slate-200">
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="flex items-center gap-2 text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    <Clock3 className="h-3.5 w-3.5 text-orange-500" />
-                    Pending Approval
-                  </CardTitle>
-                </CardHeader>
-<CardContent className="px-4 pb-4 space-y-3">
-  {[
-    // example data (remove if real data exists)
-    // { id: "REQ-001", dept: "Maintenance", age: "2d" },
-  ].length === 0 ? (
-    <p className="text-[11px] text-slate-400 text-center py-2">
-      No pending approvals
-    </p>
-  ) : (
-    [].map((item) => (
-      <div key={item.id} className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium text-slate-800">{item.id}</p>
-          <p className="text-[11px] text-slate-400">{item.dept}</p>
-        </div>
-        <span className="text-[11px] font-medium text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">
-          {item.age}
-        </span>
-      </div>
-    ))
-  )}
-</CardContent>
-              </Card>
-
-              {/* Quotation Monitoring */}
-              <Card className="shadow-none border border-slate-200">
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="flex items-center gap-2 text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    <ReceiptText className="h-3.5 w-3.5 text-blue-500" />
-                    Quotation Monitoring
-                  </CardTitle>
-                </CardHeader>
-<CardContent className="px-4 pb-4 space-y-3">
-  {[].length === 0 ? (
-    <p className="text-[11px] text-slate-400 text-center py-2">
-      No quotation updates available
-    </p>
-  ) : (
-    [].map((item) => (
-      <div key={item.supplier} className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium text-slate-800">{item.supplier}</p>
-          <p className="text-[11px] text-slate-400">{item.item}</p>
-        </div>
-        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${item.statusClass}`}>
-          {item.status}
-        </span>
-      </div>
-    ))
-  )}
-</CardContent>
-              </Card>
-
-              {/* New Item Requests */}
-              <Card className="shadow-none border border-slate-200">
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="flex items-center gap-2 text-xs font-medium text-slate-500 uppercase tracking-wide">
-                    <PackagePlus className="h-3.5 w-3.5 text-purple-500" />
-                    New Item Requests
-                  </CardTitle>
-                </CardHeader>
-<CardContent className="px-4 pb-4 space-y-3">
-  {[].length === 0 ? (
-    <p className="text-[11px] text-slate-400 text-center py-2">
-      No new item requests
-    </p>
-  ) : (
-    [].map((item) => (
-      <div key={item.name} className="flex items-center justify-between">
-        <div>
-          <p className="text-xs font-medium text-slate-800">{item.name}</p>
-          <p className="text-[11px] text-slate-400">{item.requestedBy}</p>
-        </div>
-        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${item.statusClass}`}>
-          {item.status}
-        </span>
-      </div>
-    ))
-  )}
-</CardContent>
-              </Card>
-
-            </div>
-
           </div>
         </div>
       </SidebarInset>

@@ -27,21 +27,24 @@ export const authOptions: NextAuthOptions = {
                 // Block only if explicitly failed (inactive / no portal access)
                 if (!res.ok) return false
 
+                // Check for failed status from BC
+                if (data?.Status === 'Failed') {
+                    const blockedMessages = [
+                        "User is not allowed to access the portal.",
+                        "User is inactive.",
+                    ]
+                    if (blockedMessages.includes(data?.Message)) return false
+                }
+
                 if (data?.Status === 'Successful' || data?.success) {
                     // Found in BC/Portal — store userId
                     user.id = data.UserId ?? data.userId
                     user.role = data.Role ?? data.role
                     user.email = data.Email ?? data.email ?? user.email
+                    return true
                 }
                 // If not found (401 with "Email not found") — still allow through, just no userId
-
-                const blockedMessages = [
-                    "User is not allowed to access the portal.",
-                    "User is inactive.",
-                ]
-                if (data?.error && blockedMessages.includes(data.error)) return false
-
-                return true
+                return res.ok && data?.Status !== 'Failed'
             } catch {
                 return false
             }
