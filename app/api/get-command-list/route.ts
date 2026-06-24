@@ -1,20 +1,20 @@
-// api/update-issuance-receive
+// api/get-command-list
 import { NextResponse } from "next/server";
 import { purchaseRequisitionService } from "@/services/business-central/purchase-requisition.service";
 
 export async function POST(req: Request) {
     try {
         const body = await req.json();
-        // console.log("Received data for UpdateIssuanceReceive:", body);
-        const {IssuanceNo, IssuanceLineNo, Quantity, RequestType, RequestNo, RequestLineNo} = body;
-        const result = await purchaseRequisitionService.UpdateIssuanceReceive(IssuanceNo, IssuanceLineNo, Quantity, RequestType, RequestNo, RequestLineNo);
+        //  console.log(body)
+        const {RequestNo,SectionCode, CurrentUserName} = body;
+        const result = await purchaseRequisitionService.GetCommandList(RequestNo,SectionCode, CurrentUserName);
         const parsed = JSON.parse(result?.value || "null");
-        // console.log("UpdateIssuanceReceive result:", parsed);
+        //  console.log(parsed)
         return NextResponse.json(parsed);
     } catch (err: any) {
         console.error("BC ERROR:", JSON.stringify(err?.response?.data, null, 2));
         return NextResponse.json(
-            { error: err?.response?.data?.error?.message || "Failed to receive document", },
+            { error: err?.response?.data?.error?.message || "Failed to get commands", },
             { status: err?.response?.status || 500 }
         );
     }

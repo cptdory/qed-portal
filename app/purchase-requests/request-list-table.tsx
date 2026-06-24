@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { LocationType, RequestType, DimensionType, SessionUser} from "@/types/bc-types";
+import { RequestType, DimensionType, SessionUser} from "@/types/bc-types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -152,7 +152,6 @@ function ActionsCell({ row, onView }: { row: Row<RequestList>; onView: (requestN
 export function RequestListTable() {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null)
-  const [locations, setLocations] = useState<LocationType[]>([]);
   const [requests, setRequests] = useState<RequestType[]>([]);
   const [visibleDimensions, setVisibleDimensions] = useState<DimensionType[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,20 +173,6 @@ export function RequestListTable() {
     fetchMe()
   }, [])
 
-  const fetchLocations = async () => {
-    try {
-      const res = await fetch("/api/get-user-locations", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ UserId: user?.user?.UserId ?? "" }),
-      });
-      if (!res.ok) throw new Error("Failed to fetch locations");
-      const data = await res.json();
-      setLocations(data.Locations ?? []);
-    } catch (error) {
-      console.error("Error fetching locations:", error);
-    }
-  };
 
   const fetchVisibleDimensions = async () => {
     try {
@@ -207,10 +192,10 @@ export function RequestListTable() {
   const fetchRequestList = async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/get-request-list", {
+      const res = await fetch("/api/get-request-list-by-user", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ LocationCode: "DAVAO" }),
+        body: JSON.stringify({ UserName: user?.UserId }),
       });
       if (!res.ok) throw new Error("Failed to fetch requests");
       const data = await res.json();
@@ -223,10 +208,10 @@ export function RequestListTable() {
   };
 
   useEffect(() => {
-    fetchLocations();
+    if (!user) return;
     fetchVisibleDimensions();
     fetchRequestList();
-  }, []);
+  }, [user]);
 
   const dynamicDimensionColumns = useMemo((): ColumnDef<RequestList>[] => {
     return visibleDimensions.map((dim) => ({
@@ -283,11 +268,7 @@ export function RequestListTable() {
       <div className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
         <div>
           <p className="text-xs text-slate-500">View purchase requests</p>
-          {locations.length > 0 && (
-            <p className="mt-1 text-xs text-slate-400">
-              Available Locations: {locations.join(", ")}
-            </p>
-          )}
+
         </div>
       </div>
 

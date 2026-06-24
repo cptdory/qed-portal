@@ -183,7 +183,7 @@ export default function Page() {
         body: JSON.stringify({
           RequestType: form.requestType,
           Description: form.description,
-          CreatedBy: user?.user?.UserId ?? "",
+          CreatedBy: user?.UserId ?? "",
           ...form.dimensions,
         }),
       })

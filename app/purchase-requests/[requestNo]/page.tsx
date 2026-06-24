@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { HandHelping } from "lucide-react";
-import { DimensionType, DimensionValueType, RequestLineType, RequestType, RequisitionType } from "@/types/bc-types";
+import { DimensionType, DimensionValueType, RequestType, RequisitionType, SessionUser } from "@/types/bc-types";
 import { sileo } from "sileo";
 import {
   Dialog,
@@ -141,6 +141,7 @@ function DimensionsSection({
 }
 
 export default function Page() {
+  const [user, setUser] = useState<SessionUser | null>(null)
   const { requestNo } = useParams<{ requestNo: string }>();
   const [request, setRequest] = useState<RequestType | null>(null);
   const [loading, setLoading] = useState(true);
@@ -160,7 +161,6 @@ export default function Page() {
 
   const [requisitionTypes, setRequisitionTypes] = useState<RequisitionType[]>([]);
   const [saving, setSaving] = useState(false);
-  const [submittingRequest, setSubmittingRequest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [confirmReceiveOpen, setConfirmReceiveOpen] = useState(false);
@@ -170,9 +170,23 @@ export default function Page() {
   const [checkedLines, setCheckedLines] = useState<Set<string>>(new Set());
   const [loadingIssuance, setLoadingIssuance] = useState(false);
   const [confirmingReceive, setConfirmingReceive] = useState(false);
+  const [commands, setCommands] = useState<{ Command: string; Name: string; Function: number; Enabled: boolean; Sequence: number }[]>([]);
+  const [executingCommand, setExecutingCommand] = useState<number | null>(null);
 
   const isEditable = !!request && EDITABLE_STATUSES.includes(request.RequestStatus ?? "");
-
+  useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await fetch("/api/me")
+        if (!res.ok) return
+        const data = await res.json()
+        setUser(data?.user ?? null)
+      } catch (err) {
+        console.error("Failed to fetch current user:", err)
+      }
+    }
+    fetchMe()
+  }, [])
   const fetchRequest = async () => {
     try {
       const res = await fetch("/api/get-request", {
@@ -232,7 +246,48 @@ export default function Page() {
 
     fetchRequisitionTypes();
   }, [isEditable]);
+  useEffect(() => {
+    if (!request || !user) return;
 
+    const fetchCommands = async () => {
+      try {
+        // Step 1: get section code
+        const sectionRes = await fetch("/api/get-current-user-section-code", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            RequestType: request.RequestType,
+            CurrentUserName: user?.UserId,
+            StartingPoint: true,
+          }),
+        });
+        const sectionData = await sectionRes.json();
+        if (sectionData?.Status !== "Successful" || !sectionData?.SectionCode) return;
+
+        // Step 2: get command list
+        const commandRes = await fetch("/api/get-command-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            RequestNo: request.RequestNo,
+            SectionCode: sectionData.SectionCode,
+            CurrentUserName: user?.UserId,
+          }),
+        });
+        const commandData = await commandRes.json();
+        if (commandData?.Status !== "Successful") return;
+
+        const sorted = (commandData.Commands ?? []).sort(
+          (a: any, b: any) => a.Sequence - b.Sequence
+        );
+        setCommands(sorted);
+      } catch (err) {
+        console.error("Failed to load commands:", err);
+      }
+    };
+
+    fetchCommands();
+  }, [request, user]);
   const handleDimensionChange = (key: string, value: string) => {
     setDimensionValues((prev) => ({ ...prev, [key]: value }));
   };
@@ -348,54 +403,6 @@ export default function Page() {
     }
   };
 
-  const handleSubmitRequest = async () => {
-    if (!request || !isEditable) return;
-
-    const confirmed = window.confirm(
-      "Once submitted, this request can no longer be updated. Are you sure you want to submit it?"
-    );
-    if (!confirmed) return;
-
-    try {
-      setSubmittingRequest(true);
-      setError(null);
-
-      const res = await fetch("/api/submit-request", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          RequestNo: request.RequestNo,
-          CreatedBy: request.RequestedBy,
-        }),
-      });
-
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        const message = data?.error || "Failed to submit request.";
-        setError(message);
-        sileo.error({ title: `Submit Failed — ${message}`, fill: "#171717" });
-        return;
-      }
-
-      if (data?.Status !== "Successful") {
-        const message = data?.Message ?? "Failed to submit request.";
-        setError(message);
-        sileo.error({ title: `Submit Failed — ${message}`, fill: "#171717" });
-        return;
-      }
-
-      sileo.success({ title: "Request submitted successfully.", fill: "#171717" });
-      await fetchRequest();
-    } catch (err) {
-      const message = "An unexpected error occurred.";
-      setError(message);
-      sileo.error({ title: `Submit Failed — ${message}`, fill: "#171717" });
-    } finally {
-      setSubmittingRequest(false);
-    }
-  };
-
   const handleReceiveRequestedItems = () => {
     setIssuanceNo("");
     setIssuanceData(null);
@@ -405,7 +412,7 @@ export default function Page() {
   };
 
   const handleLoadIssuance = async () => {
-    
+
     if (!issuanceNo.trim()) {
       sileo.error({ title: "Please enter an issuance number.", fill: "#171717" });
       return;
@@ -443,6 +450,7 @@ export default function Page() {
 
       // Compare issuance lines with request lines
       const newReceivedQuantities: Record<string, string> = {};
+      const newCheckedLines = new Set<string>();
       const currentRequestType = issuance?.RequestType;
       const currentRequestNo = issuance?.RequestNo;
 
@@ -456,11 +464,16 @@ export default function Page() {
           );
 
           if (matchingLine) {
+            const key = issuanceLine.RequestLineNo.toString();
             newReceivedQuantities[issuanceLine.RequestLineNo.toString()] = issuanceLine.Quantity?.toString() || "";
+            if (issuanceLine.Quantity && issuanceLine.Quantity > 0) {
+              newCheckedLines.add(key);
+            }
           }
         }
       }
       setReceivedQuantities(newReceivedQuantities);
+      setCheckedLines(newCheckedLines);
       sileo.success({
         title: `Issuance loaded successfully. Found ${Object.keys(newReceivedQuantities).length} matching items.`,
         fill: "#171717",
@@ -517,22 +530,30 @@ export default function Page() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               IssuanceNo: issuanceData?.IssuanceNo || "",
-              IssuanceLineNo: issuanceLine?.IssuanceLineNo || "",
+              IssuanceLineNo: String(issuanceLine?.IssuanceLineNo || ""),
               Quantity: receivedQty,
               RequestType: request?.RequestType,
               RequestNo: request?.RequestNo,
-              RequestLineNo: requestLine.LineNo,
+              RequestLineNo: String(requestLine.LineNo),
             }),
           });
 
           const data = await res.json().catch(() => null);
 
-          if (res.ok && data?.Status === "Successful") {
-            successCount++;
-          } else {
+          if (!res.ok || data?.Status !== "Successful") {
             failureCount++;
-            sileo.error({ title: `Line Update Failed — ${data?.Message || "Could not update line."}`, fill: "#171717" });
+
+            const message = data?.Message || "Failed to receive";
+
+            sileo.error({
+              title: "Receive Failed: " + message,
+              fill: "#171717",
+            });
+
+            continue;
           }
+
+          successCount++;
         } catch (err) {
           failureCount++;
           sileo.error({ title: "Line Update Error — An error occurred while updating the line.", fill: "#171717" });
@@ -546,8 +567,6 @@ export default function Page() {
         });
         setConfirmReceiveOpen(false);
         setReceiveOpen(false);
-      } else {
-        sileo.error({ title: "Failed to confirm receipt. Please try again.", fill: "#171717" });
       }
     } catch (err) {
       sileo.error({ title: "An unexpected error occurred.", fill: "#171717" });
@@ -557,8 +576,41 @@ export default function Page() {
   };
 
   const lines = request?.RequestLines ?? [];
+  const handleExecuteCommand = async (codeunitId: number, command: string) => {
+    if (!request) return;
 
-  return (  
+    const confirmed = window.confirm(`Are you sure you want to execute "${command}"?`);
+    if (!confirmed) return;
+
+    try {
+      setExecutingCommand(codeunitId);
+
+      const res = await fetch("/api/execute-command", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          CodeunitId: codeunitId,
+          RequestNo: request.RequestNo,
+        }),
+      });
+
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok || (data?.Status && data.Status !== "Successful")) {
+        const message = data?.Message || data?.error || "Failed to execute command.";
+        sileo.error({ title: `${command} Failed — ${message}`, fill: "#171717" });
+        return;
+      }
+
+      sileo.success({ title: `${command} executed successfully.`, fill: "#171717" });
+      await fetchRequest();
+    } catch (err) {
+      sileo.error({ title: "An unexpected error occurred.", fill: "#171717" });
+    } finally {
+      setExecutingCommand(null);
+    }
+  };
+  return (
     <SidebarProvider>
       <AppSidebar variant="inset" />
       <SidebarInset>
@@ -568,34 +620,47 @@ export default function Page() {
             <div className="space-y-3 p-3 md:p-4 lg:p-5">
 
               <section className="rounded-md border bg-white shadow-sm">
+                {/* Dynamic command button bar */}
+                {commands.length > 0 && (
+                  <div className="flex items-center gap-2 border-b px-4 py-2.5 flex-wrap min-h-[48px]">
+                    {commands.map((cmd) => (
+                      <button
+                        key={cmd.Function}
+                        disabled={!cmd.Enabled || executingCommand === cmd.Function || saving}
+                        onClick={() => handleExecuteCommand(cmd.Function, cmd.Name)}
+                        className={[
+                          "inline-flex items-center gap-1.5 h-8 px-3.5 rounded-md text-xs font-medium transition-colors",
+                          cmd.Enabled && executingCommand !== cmd.Function && !saving
+                            ? "bg-orange-200 text-orange-900 hover:bg-orange-300 active:bg-orange-400 cursor-pointer"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed",
+                        ].join(" ")}
+                      >
+                        {executingCommand === cmd.Function ? "Processing..." : cmd.Name || "Action"}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* General header bar */}
                 <div className="flex items-center justify-between border-b px-4 py-2">
                   <h2 className="text-sm font-semibold tracking-tight text-slate-900">General</h2>
-                  {isEditable && (
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={handleSave} disabled={saving || submittingRequest}>
+                  <div className="flex items-center gap-2">
+                    {isEditable && (
+                      <Button size="sm" onClick={handleSave} disabled={saving || !!executingCommand}>
                         {saving ? "Saving..." : "Save Changes"}
                       </Button>
+                    )}
+                    {request?.RequestStatus === "Approved" && (
                       <Button
                         size="sm"
-                        variant="outline"
-                        onClick={handleSubmitRequest}
-                        disabled={saving || submittingRequest}
-                        className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                        className="bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={handleReceiveRequestedItems}
                       >
-                        {submittingRequest ? "Submitting..." : "Submit"}
+                        <HandHelping className="h-3.5 w-3.5 mr-1.5" />
+                        Receive Requested Items
                       </Button>
-                    </div>
-                  )}
-                  {request?.RequestStatus === "Approved" && (
-                    <Button
-                      size="sm"
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={handleReceiveRequestedItems}
-                    >
-                      <HandHelping className="h-3.5 w-3.5 mr-1.5" />
-                      Receive Requested Items
-                    </Button>
-                  )}
+                    )}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-12 gap-4 p-4">
@@ -773,9 +838,8 @@ export default function Page() {
                             return (
                               <tr
                                 key={line.LineNo}
-                                className={`border-b last:border-0 hover:bg-slate-50 ${
-                                  issuanceLine ? "bg-green-50" : ""
-                                }`}
+                                className={`border-b last:border-0 hover:bg-slate-50 ${issuanceLine ? "bg-green-50" : ""
+                                  }`}
                               >
                                 <td className="px-3 py-3 text-center">
                                   <div className="flex justify-center">

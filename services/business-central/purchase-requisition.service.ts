@@ -5,7 +5,7 @@ class PurchaseRequisitionService {
     EmailAddress: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_LoginAuth",
+      "RequisitionAPI_LoginAuth",
       {
         _EmailAddress: EmailAddress,
       }
@@ -16,7 +16,7 @@ class PurchaseRequisitionService {
     OTP: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_VerifyOTP",
+      "RequisitionAPI_VerifyOTP",
       {
         _EmailAddress: EmailAddress,
         _OTP: OTP,
@@ -38,7 +38,7 @@ class PurchaseRequisitionService {
     Dim8: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_CreateRequestHeader",
+      "RequisitionAPI_CreateRequestHeader",
       {
         _RequestType: RequestType,
         _Description: Description,
@@ -71,7 +71,7 @@ class PurchaseRequisitionService {
     Dim8: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_CreateRequestLine",
+      "RequisitionAPI_CreateRequestLine",
       {
         _RequestNo: RequestNo,
         _Type: Type,
@@ -106,7 +106,7 @@ class PurchaseRequisitionService {
     Dim8: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_UpdateRequestLine",
+      "RequisitionAPI_UpdateRequestLine",
       {
         _RequestType: RequestType,
         _RequestNo: RequestNo,
@@ -132,7 +132,7 @@ class PurchaseRequisitionService {
     LineNo: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_DeleteRequestLine",
+      "RequisitionAPI_DeleteRequestLine",
       {
         _RequestType: RequestType,
         _RequestNo: RequestNo,
@@ -145,7 +145,7 @@ class PurchaseRequisitionService {
     RequestType: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetItems",
+      "RequisitionAPI_GetItems",
       {
         _RequestType: RequestType,
       }
@@ -165,7 +165,7 @@ class PurchaseRequisitionService {
     Dim8: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_UpdateRequestHeader",
+      "RequisitionAPI_UpdateRequestHeader",
       {
         _RequestNo: RequestNo,
         _RequestType: RequestType,
@@ -181,25 +181,24 @@ class PurchaseRequisitionService {
       }
     );
   }
-  async SubmitRequest(
-    RequestNo: string,
-    CreatedBy: string,
-  ) {
-    return bcClient.post<{ value: string }>(
-      "RequisitionPortal_SubmitRequest",
-      {
-        _RequestNo: RequestNo,
-        _CreatedBy: CreatedBy
-      }
-    );
-  }
-  async GetRequestList(
+
+  async GetRequestListByLocation(
     LocationCode: string
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetRequestList",
+      "RequisitionAPI_GetRequestListByLocation",
       {
         _LocationCode: LocationCode
+      }
+    );
+  }
+  async GetRequestListByUser(
+    UserName: string
+  ) {
+    return bcClient.post<{ value: string }>(
+      "RequisitionAPI_GetRequestListByUser",
+      {
+        _UserName: UserName
       }
     );
   }
@@ -207,7 +206,7 @@ class PurchaseRequisitionService {
     RequestNo: string
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetRequest",
+      "RequisitionAPI_GetRequest",
       {
         _RequestNo: RequestNo
       }
@@ -217,7 +216,7 @@ class PurchaseRequisitionService {
     IssuanceNo: string
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetIssuance",
+      "RequisitionAPI_GetIssuance",
       {
         _IssuanceNo: IssuanceNo
       }
@@ -232,9 +231,9 @@ class PurchaseRequisitionService {
     RequestLineNo: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_UpdateIssuanceReceive",
+      "RequisitionAPI_UpdateIssuanceReceive",
       {
-        _IssuanceNo: IssuanceNo ?? "",
+        _IssuanceNo: IssuanceNo,
         _IssuanceLineNo: IssuanceLineNo,
         _Quantity: Quantity,
         _RequestType: RequestType,
@@ -244,21 +243,11 @@ class PurchaseRequisitionService {
     );
   }
 
-  async GetUserLocations(
-    UserId: string
-  ) {
-    return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetUserLocations",
-      {
-        _UserId: UserId
-      }
-    );
-  }
   async GetVisibleDimensions(
     VisibleIn: string
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetVisibleDimensions",
+      "RequisitionAPI_GetVisibleDimensions",
       {
         _VisibleIn: VisibleIn
       }
@@ -268,7 +257,7 @@ class PurchaseRequisitionService {
     DimensionCode: string
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetDimensionValues",
+      "RequisitionAPI_GetDimensionValues",
       {
         _DimensionCode: DimensionCode
       }
@@ -278,7 +267,7 @@ class PurchaseRequisitionService {
     IsSubRequest: string
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetRequisitionTypes",
+      "RequisitionAPI_GetRequisitionTypes",
       { _IsSubRequest: IsSubRequest }
     );
   }
@@ -288,7 +277,7 @@ class PurchaseRequisitionService {
     CreatedBy: string
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetNewItemRequestList",
+      "RequisitionAPI_GetNewItemRequestList",
       { _CreatedBy: CreatedBy }
     );
   }
@@ -296,10 +285,23 @@ class PurchaseRequisitionService {
     NewItemRequestNo: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetNewItemRequest",
-      { 
+      "RequisitionAPI_GetNewItemRequest",
+      {
         _NewItemRequestNo: NewItemRequestNo
-       }
+      }
+    );
+  }
+
+    async SubmitNewItemRequest(
+    No: string,
+    NewItemRequestNo: string
+  ) {
+    return bcClient.post<{ value: string }>(
+      "RequisitionAPI_SubmitNewItemRequest",
+      {
+        _No: No,
+        _NewItemRequestNo: NewItemRequestNo
+      }
     );
   }
   async CreateNewItemRequest(
@@ -312,7 +314,7 @@ class PurchaseRequisitionService {
     PictureBase64: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_CreateNewItemRequest",
+      "RequisitionAPI_CreateNewItemRequest",
       {
         _No: No,
         _CreatedBy: CreatedBy,
@@ -334,7 +336,7 @@ class PurchaseRequisitionService {
     PictureBase64: string,
   ) {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_UpdateNewItemRequest",
+      "RequisitionAPI_UpdateNewItemRequest",
       {
         _No: No,
         _NewItemRequestNo: NewItemRequestNo,
@@ -346,29 +348,58 @@ class PurchaseRequisitionService {
       }
     );
   }
-  async SubmitNewItemRequest(
-    No: string,
-    NewItemRequestNo: string
-  ) {
-    return bcClient.post<{ value: string }>(
-      "RequisitionPortal_SubmitNewItemRequest",
-      {
-        _No: No,
-        _NewItemRequestNo: NewItemRequestNo
-      }
-    );
-  }
 
   async GetBaseUnitOfMeasure() {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetBaseUnitOfMeasure",
+      "RequisitionAPI_GetBaseUnitOfMeasure",
       {}
     );
   }
   async GetItemCategories() {
     return bcClient.post<{ value: string }>(
-      "RequisitionPortal_GetItemCategories",
+      "RequisitionAPI_GetItemCategories",
       {}
+    );
+  }
+
+  async GetCommandList(
+    RequestNo: string,
+    SectionCode: string,
+    CurrentUserName: string
+  ) {
+    return bcClient.post<{ value: string }>(
+      "RequisitionAPI_GetCommandList",
+      {
+        _RequestNo: RequestNo,
+        _SectionCode: SectionCode,
+        _CurrentUserName: CurrentUserName
+      }
+    );
+  }
+  async ExecuteCommand(
+    CodeunitId: string,
+    RequestNo: string
+  ) {
+    return bcClient.post<{ value: string }>(
+      "RequisitionAPI_ExecuteCommand",
+      {
+        _CodeunitId: CodeunitId,
+        _RequestNo: RequestNo
+      }
+    );
+  }
+  async GetCurrentUserSectionCode(
+    RequestType: string,
+    CurrentUserName: string,
+    StartingPoint: string,
+  ) {
+    return bcClient.post<{ value: string }>(
+      "RequisitionAPI_GetCurrentUserSectionCode",
+      {
+        _RequestType: RequestType,
+        _CurrentUserName: CurrentUserName,
+        _StartingPoint: StartingPoint,
+      }
     );
   }
 }

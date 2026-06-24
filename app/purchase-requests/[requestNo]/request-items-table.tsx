@@ -224,7 +224,6 @@ export function RequestItemsTable({
 
   const handleNoChange = (value: string) => {
     setForm((prev) => ({ ...prev, no: value }))
-    // Re-fetch items whenever a selection is made, per spec
     fetchItems()
   }
 
@@ -275,7 +274,6 @@ export function RequestItemsTable({
     }
 
     const payload = {
-      RequestType: requestType,
       RequestNo: requestNo,
       Type: form.type,
       No: form.no,
