@@ -6,8 +6,8 @@ export async function POST(req: Request) {
     try {
         const body = await req.json();
         console.log(body)
-        const {UserName} = body;
-        const result = await purchaseRequisitionService.GetRequestListByUser(UserName);
+        const {UserName,LocationCode} = body;
+        const result = await purchaseRequisitionService.GetRequestList(UserName,LocationCode);
         const parsed = JSON.parse(result?.value || "null");
         return NextResponse.json(parsed);
     } catch (err: any) {
