@@ -309,7 +309,7 @@ export default function Page() {
         const res = await fetch("/api/get-request-list", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserName: user.UserId, LocationCode: '' }),
+          body: JSON.stringify({ UserName: user.UserId }),
         })
         if (!res.ok) throw new Error()
         const data = await res.json()

@@ -1,6 +1,7 @@
 "use client"
 
 import React from "react";
+import { useEffect, useState } from "react"
 import {
   Avatar,
   AvatarFallback,
@@ -21,9 +22,35 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { SessionUser } from "@/types/bc-types"
 import { signOut } from "next-auth/react"
 import { Spinner } from "@/components/ui/spinner";
-import { EllipsisVerticalIcon, CircleUserRoundIcon, BellIcon, LogOutIcon } from "lucide-react"
+import { EllipsisVerticalIcon, LocateIcon, BellIcon, LogOutIcon } from "lucide-react"
+import { sileo } from "sileo";
+
+interface UpdateLocationForm {
+  UserName: string
+  LocationCode: string
+}
+
+// One entry returned by /api/get-requisition-locations
+interface LocationOption {
+  Code: string
+  Description: string
+}
+
+const emptyForm = (): UpdateLocationForm => ({
+  UserName: "",
+  LocationCode: "",
+})
 async function logout(): Promise<void> {
   const res = await fetch("/api/logout", {
     method: "POST",
@@ -40,14 +67,93 @@ export function NavUser({
     avatar: string
   }
 }) {
+  const [sessionUser, setUser] = useState<SessionUser | null>(null)
+  const [locations, setLocations] = useState<LocationOption[]>([])
+  const [loadingLocations, setLoadingLocations] = useState(false)
   const { isMobile } = useSidebar()
   const [loggingOut, setLoggingOut] = React.useState(false);
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState<UpdateLocationForm>(emptyForm())
+  const [submitting, setSubmitting] = useState(false)
+
+  useEffect(() => {
+    const fetchMe = async () => {
+      try {
+        const res = await fetch("/api/me")
+        if (!res.ok) throw new Error("Failed to fetch session")
+        const data = await res.json()
+        setUser(data?.user ?? null)
+      } catch {
+        sileo.error({ title: "Session Error — Could not load your session. Please refresh.", fill: "#171717" })
+      }
+    }
+    fetchMe()
+  }, [])
 
   const handleLogout = () => {
     setLoggingOut(true);
     logout()
       .then(() => (window.location.href = '/login'))
   };
+
+  const fetchLocations = async () => {
+    try {
+      setLoadingLocations(true)
+      const res = await fetch("/api/get-requisition-locations")
+      if (!res.ok) throw new Error("Failed to fetch locations")
+      const data = await res.json()
+      setLocations(data?.Locations ?? [])
+    } catch (err) {
+      console.error("Failed to fetch locations:", err)
+      sileo.error({ title: "Could not load locations — please try again.", fill: "#171717" })
+    } finally {
+      setLoadingLocations(false)
+    }
+  }
+
+  // Load the location list and reset the form each time the modal opens
+  useEffect(() => {
+    if (open) {
+      setForm({ UserName: user.name, LocationCode: "" })
+      fetchLocations()
+    }
+  }, [open])
+
+  const handleSubmit = async () => {
+    try {
+      setSubmitting(true)
+
+      const res = await fetch("/api/update-request-location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          UserName: form.UserName,
+          LocationCode: form.LocationCode,
+        }),
+      })
+
+      const data = await res.json().catch(() => null)
+
+      if (!res.ok) {
+        const message = data?.error || "Failed to request location."
+        sileo.error({ title: `Failed to request location — ${message}`, fill: "#171717" })
+        return
+      }
+
+      if (data?.Status !== "Successful") {
+        const message = data?.Message ?? "Failed to request location."
+        sileo.error({ title: `Failed to request location — ${message}`, fill: "#171717" })
+        return
+      }
+
+      sileo.success({ title: "Location requested successfully.", fill: "#171717" })
+      setOpen(false)
+    } catch {
+      sileo.error({ title: "Failed to update location — An unexpected error occurred.", fill: "#171717" })
+    } finally {
+      setSubmitting(false)
+    }
+  }
   return (
     <>
       {loggingOut && (
@@ -99,16 +205,13 @@ export function NavUser({
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuGroup>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent/50">
-                  <CircleUserRoundIcon className="size-4"
-                  />
-                  Account
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent/50">
-                  <BellIcon className="size-4"
-                  />
-                  Notifications
-                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setOpen(true)}
+                  className="cursor-pointer hover:bg-accent/50"
+                >
+                  <LocateIcon className="size-4" />
+                  Change Location
+                </DropdownMenuItem >
               </DropdownMenuGroup>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={handleLogout} className="cursor-pointer hover:bg-destructive/10 text-destructive hover:text-destructive">
@@ -120,7 +223,65 @@ export function NavUser({
           </DropdownMenu>
         </SidebarMenuItem>
       </SidebarMenu>
-    </>
 
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Location</DialogTitle>
+            <DialogDescription>
+              Choose the location you'd like to request. Your request will be sent for approval.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-2 py-2">
+            <label htmlFor="location-select" className="text-sm font-medium text-foreground">
+              Location
+            </label>
+            <select
+              id="location-select"
+              value={form.LocationCode}
+              onChange={(e) =>
+                setForm((prev) => ({ ...prev, LocationCode: e.target.value }))
+              }
+              disabled={loadingLocations || submitting}
+              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="" disabled>
+                {loadingLocations
+                  ? "Loading locations..."
+                  : locations.length === 0
+                    ? "No locations available"
+                    : "Select a location"}
+              </option>
+              {locations.map((loc) => (
+                <option key={loc.Code} value={loc.Code}>
+                  {loc.Description ? `${loc.Code} — ${loc.Description}` : loc.Code}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <DialogFooter>
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              disabled={submitting}
+              className="inline-flex h-9 items-center justify-center rounded-md border border-input px-4 text-sm font-medium hover:bg-accent/50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={submitting || !form.LocationCode || loadingLocations}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {submitting && <Spinner className="h-4 w-4" />}
+              Request Change
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }

@@ -183,14 +183,12 @@ class PurchaseRequisitionService {
   }
 
   async GetRequestList(
-    UserName: string,
-     LocationCode: string
+    UserName: string
   ) {
     return bcClient.post<{ value: string }>(
       "RequisitionAPI_GetRequestList",
       {
-        _UserName: UserName,
-        _LocationCode: LocationCode
+        _UserName: UserName
       }
     );
   }
@@ -392,6 +390,26 @@ class PurchaseRequisitionService {
         _CurrentUserName: CurrentUserName,
         _StartingPoint: StartingPoint,
       }
+    );
+  }
+
+    async UpdateRequestLocation(
+    UserName: string,
+    LocationCode: string
+  ) {
+    return bcClient.post<{ value: string }>(
+      "RequisitionAPI_UpdateRequestLocation",
+      {
+        _UserName: UserName,
+        _LocationCode: LocationCode
+      }
+    );
+  }
+
+    async GetRequisitionLocations() {
+    return bcClient.post<{ value: string }>(
+      "RequisitionAPI_GetRequisitionLocations",
+      {}
     );
   }
 }
